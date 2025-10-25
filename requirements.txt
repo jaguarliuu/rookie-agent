@@ -1,0 +1,14 @@
+# Core dependencies
+openai>=1.0.0
+pydantic>=2.0.0
+python-dotenv>=1.0.0
+httpx>=0.24.0
+tiktoken>=0.5.0
+
+# Optional: RAG dependencies
+chromadb>=0.4.0
+sentence-transformers>=2.2.0
+
+# Optional: API dependencies
+fastapi>=0.100.0
+uvicorn[standard]>=0.23.0
