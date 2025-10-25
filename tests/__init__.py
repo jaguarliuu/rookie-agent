@@ -1,0 +1,1 @@
+"""Tests for Rookie Agent."""
