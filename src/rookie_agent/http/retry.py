@@ -187,7 +187,7 @@ def retry_on_exception(
     return decorator
 
 
-async def async_retry_on_exception(
+def async_retry_on_exception(
     max_attempts: int = 3,
     base_delay: float = 1.0,
     max_delay: float = 60.0,
@@ -198,6 +198,9 @@ async def async_retry_on_exception(
     """Async version of retry decorator.
 
     Same as retry_on_exception but for async functions.
+
+    IMPORTANT: This is a regular function (not async def) that returns
+    a decorator. The decorator itself wraps async functions.
 
     Args:
         max_attempts: Maximum number of retry attempts
@@ -212,6 +215,12 @@ async def async_retry_on_exception(
 
     Raises:
         RetryExhaustedError: When all retry attempts are exhausted
+
+    Examples:
+        >>> @async_retry_on_exception(max_attempts=3, base_delay=1.0)
+        ... async def fetch_data():
+        ...     # Async function that might fail
+        ...     pass
     """
     import asyncio
 
