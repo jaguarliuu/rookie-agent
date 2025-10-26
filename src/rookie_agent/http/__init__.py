@@ -34,7 +34,8 @@ from rookie_agent.http.exceptions import (
     RetryExhaustedError,
     SSEError,
 )
-from rookie_agent.http.retry import RetryConfig, retry_on_exception
+from rookie_agent.http.retry import RetryConfig, retry_on_exception, async_retry_on_exception
+from rookie_agent.http.streaming import SSEEvent, SSEParser, SSEStream, AsyncSSEStream
 from rookie_agent.http.types import HTTPMethod, Headers, JSONData, QueryParams
 
 __all__ = [
@@ -52,6 +53,12 @@ __all__ = [
     # Retry
     "RetryConfig",
     "retry_on_exception",
+    "async_retry_on_exception",
+    # Streaming
+    "SSEEvent",
+    "SSEParser",
+    "SSEStream",
+    "AsyncSSEStream",
     # Types
     "HTTPMethod",
     "Headers",
