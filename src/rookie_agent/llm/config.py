@@ -19,7 +19,7 @@ Security:
 import os
 import logging
 from typing import Optional, Dict, Any
-from pydantic import BaseModel, Field, validator, root_validator
+from pydantic import BaseModel, Field, field_validator, model_validator, ConfigDict
 
 from rookie_agent.llm.exceptions import ConfigurationError
 
@@ -128,12 +128,11 @@ class ProviderConfig(BaseModel):
         description="Additional request body parameters"
     )
 
-    class Config:
-        """Pydantic configuration."""
-
-        validate_assignment = True  # Validate on assignment
-        arbitrary_types_allowed = False
-        extra = "forbid"  # Reject unknown fields
+    model_config = ConfigDict(
+        validate_assignment=True,
+        arbitrary_types_allowed=False,
+        extra="forbid",
+    )
 
     def __repr__(self) -> str:
         """String representation with masked API key.
@@ -145,7 +144,7 @@ class ProviderConfig(BaseModel):
     def _repr_with_masked_key(self) -> str:
         """Generate repr with masked sensitive data."""
         fields = []
-        for field_name, field_value in self.dict().items():
+        for field_name, field_value in self.model_dump().items():
             if "key" in field_name.lower() or "secret" in field_name.lower():
                 # Mask sensitive fields
                 if field_value:
@@ -158,22 +157,21 @@ class ProviderConfig(BaseModel):
 
         return f"{self.__class__.__name__}({', '.join(fields)})"
 
-    @root_validator(pre=False)
-    def validate_config(cls, values):
+    @model_validator(mode="after")
+    def validate_config(cls, model):
         """Final validation of configuration.
 
         Raises:
             ConfigurationError: If configuration is invalid
         """
-        # Check API key is present (unless explicitly allowed to be None)
-        api_key = values.get("api_key")
-        if api_key is None and not cls._allow_none_api_key():
+        api_key = getattr(model, "api_key", None)
+        if (api_key is None or (isinstance(api_key, str) and api_key.strip() == "")) and not model.__class__._allow_none_api_key():
             raise ConfigurationError(
-                f"API key is required for {cls.__name__}. "
+                f"API key is required for {model.__class__.__name__}. "
                 f"Set it via environment variable or pass as parameter."
             )
 
-        return values
+        return model
 
     @classmethod
     def _allow_none_api_key(cls) -> bool:
@@ -238,24 +236,24 @@ class OpenAIConfig(ProviderConfig):
         description="OpenAI organization ID"
     )
 
-    @validator("api_key", pre=True, always=True)
+    @field_validator("api_key", mode="before")
     def load_api_key(cls, v):
         """Load API key from environment if not provided."""
-        if v is not None:
+        if v not in (None, ""):
             return v
         return os.getenv("OPENAI_API_KEY")
 
-    @validator("api_base", pre=True, always=True)
+    @field_validator("api_base", mode="before")
     def load_api_base(cls, v):
         """Load API base from environment if not provided."""
-        if v is not None:
+        if v not in (None, ""):
             return v
         return os.getenv("OPENAI_API_BASE", "https://api.openai.com/v1")
 
-    @validator("organization", pre=True, always=True)
+    @field_validator("organization", mode="before")
     def load_organization(cls, v):
         """Load organization from environment if not provided."""
-        if v is not None:
+        if v not in (None, ""):
             return v
         return os.getenv("OPENAI_ORGANIZATION")
 
@@ -279,7 +277,7 @@ class QwenConfig(ProviderConfig):
         ... )
     """
 
-    model: str = "qwen-turbo"
+    model: str = "qwen-max"
     api_base: Optional[str] = "https://dashscope.aliyuncs.com/compatible-mode/v1"
 
     # Qwen-specific parameters
@@ -293,18 +291,27 @@ class QwenConfig(ProviderConfig):
         description="Repetition penalty"
     )
 
-    @validator("api_key", pre=True, always=True)
+    @model_validator(mode="before")
+    def populate_from_env(cls, data):
+        """Populate missing fields from environment before validation."""
+        if isinstance(data, dict):
+            if data.get("api_key") is None:
+                data["api_key"] = os.getenv("DASHSCOPE_API_KEY") or os.getenv("QWEN_API_KEY")
+            if data.get("api_base") is None:
+                data["api_base"] = os.getenv("QWEN_API_BASE", "https://dashscope.aliyuncs.com/compatible-mode/v1")
+        return data
+
+    @field_validator("api_key", mode="before")
     def load_api_key(cls, v):
         """Load API key from environment if not provided."""
-        if v is not None:
-            return v
-        # Try both DASHSCOPE_API_KEY and QWEN_API_KEY
-        return os.getenv("DASHSCOPE_API_KEY") or os.getenv("QWEN_API_KEY")
+        if v is None:
+            return os.getenv("DASHSCOPE_API_KEY") or os.getenv("QWEN_API_KEY")
+        return v
 
-    @validator("api_base", pre=True, always=True)
+    @field_validator("api_base", mode="before")
     def load_api_base(cls, v):
         """Load API base from environment if not provided."""
-        if v is not None:
+        if v not in (None, ""):
             return v
         return os.getenv("QWEN_API_BASE",
                         "https://dashscope.aliyuncs.com/compatible-mode/v1")
@@ -345,17 +352,27 @@ class DeepSeekConfig(ProviderConfig):
         description="Presence penalty"
     )
 
-    @validator("api_key", pre=True, always=True)
+    @model_validator(mode="before")
+    def populate_from_env(cls, data):
+        """Populate missing fields from environment before validation."""
+        if isinstance(data, dict):
+            if data.get("api_key") is None:
+                data["api_key"] = os.getenv("DEEPSEEK_API_KEY")
+            if data.get("api_base") is None:
+                data["api_base"] = os.getenv("DEEPSEEK_API_BASE", "https://api.deepseek.com/v1")
+        return data
+
+    @field_validator("api_key", mode="before")
     def load_api_key(cls, v):
         """Load API key from environment if not provided."""
-        if v is not None:
-            return v
-        return os.getenv("DEEPSEEK_API_KEY")
+        if v is None:
+            return os.getenv("DEEPSEEK_API_KEY")
+        return v
 
-    @validator("api_base", pre=True, always=True)
+    @field_validator("api_base", mode="before")
     def load_api_base(cls, v):
         """Load API base from environment if not provided."""
-        if v is not None:
+        if v not in (None, ""):
             return v
         return os.getenv("DEEPSEEK_API_BASE", "https://api.deepseek.com/v1")
 
@@ -391,10 +408,10 @@ class OllamaConfig(ProviderConfig):
         description="Context window size"
     )
 
-    @validator("api_base", pre=True, always=True)
+    @field_validator("api_base", mode="before")
     def load_api_base(cls, v):
         """Load API base from environment if not provided."""
-        if v is not None:
+        if v not in (None, ""):
             return v
         base = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
         # Ensure /v1 suffix for OpenAI compatibility
@@ -441,16 +458,16 @@ class ClaudeConfig(ProviderConfig):
         description="Maximum tokens to generate (required for Claude)"
     )
 
-    @validator("api_key", pre=True, always=True)
+    @field_validator("api_key", mode="before")
     def load_api_key(cls, v):
         """Load API key from environment if not provided."""
-        if v is not None:
+        if v not in (None, ""):
             return v
         return os.getenv("ANTHROPIC_API_KEY") or os.getenv("CLAUDE_API_KEY")
 
-    @validator("api_base", pre=True, always=True)
+    @field_validator("api_base", mode="before")
     def load_api_base(cls, v):
         """Load API base from environment if not provided."""
-        if v is not None:
+        if v not in (None, ""):
             return v
         return os.getenv("ANTHROPIC_API_BASE", "https://api.anthropic.com")
