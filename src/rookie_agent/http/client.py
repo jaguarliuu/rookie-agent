@@ -17,6 +17,7 @@ from rookie_agent.http.exceptions import (
     HTTPTimeoutError,
 )
 from rookie_agent.http.retry import retry_on_exception
+from rookie_agent.http.streaming import SSEStream, AsyncSSEStream
 from rookie_agent.http.types import Headers, HTTPMethod, JSONData, QueryParams, Timeout
 
 logger = logging.getLogger(__name__)
@@ -346,6 +347,118 @@ class HTTPClient:
             **kwargs,
         )
 
+    def stream_request(
+        self,
+        method: Union[str, HTTPMethod],
+        url: str,
+        **kwargs: Any,
+    ) -> SSEStream:
+        """Make a streaming HTTP request for SSE.
+
+        This method enables streaming mode for Server-Sent Events (SSE).
+        Use this for streaming responses from LLM APIs.
+
+        Args:
+            method: HTTP method (GET, POST, etc.)
+            url: Request URL
+            **kwargs: Additional httpx request parameters
+
+        Returns:
+            SSEStream object for iterating over events
+
+        Examples:
+            >>> with client.stream_request("POST", url, json=data) as stream:
+            ...     for event in stream:
+            ...         print(event.data)
+        """
+        method_str = method.value if isinstance(method, HTTPMethod) else method
+
+        logger.debug(f"Making streaming {method_str} request to {url}")
+
+        try:
+            # Create streaming request
+            with self._client.stream(method_str, url, **kwargs) as response:
+                response.raise_for_status()
+
+                logger.debug(
+                    f"Streaming {method_str} {url} -> {response.status_code}"
+                )
+
+                return SSEStream(response)
+
+        except Exception as e:
+            logger.error(f"Streaming {method_str} {url} failed: {str(e)}")
+            self._handle_httpx_error(e, url)
+            raise
+
+    def stream_get(
+        self,
+        url: str,
+        params: Optional[QueryParams] = None,
+        headers: Optional[Headers] = None,
+        **kwargs: Any,
+    ) -> SSEStream:
+        """Make a streaming GET request.
+
+        Args:
+            url: Request URL
+            params: Query parameters
+            headers: Request headers
+            **kwargs: Additional request parameters
+
+        Returns:
+            SSEStream object
+
+        Examples:
+            >>> with client.stream_get(url) as stream:
+            ...     for event in stream:
+            ...         print(event.data)
+        """
+        merged_headers = self._merge_headers(headers)
+        return self.stream_request(
+            HTTPMethod.GET,
+            url,
+            params=params,
+            headers=merged_headers,
+            **kwargs,
+        )
+
+    def stream_post(
+        self,
+        url: str,
+        json: Optional[JSONData] = None,
+        data: Optional[Any] = None,
+        headers: Optional[Headers] = None,
+        **kwargs: Any,
+    ) -> SSEStream:
+        """Make a streaming POST request.
+
+        Args:
+            url: Request URL
+            json: JSON body
+            data: Form data or raw body
+            headers: Request headers
+            **kwargs: Additional request parameters
+
+        Returns:
+            SSEStream object
+
+        Examples:
+            >>> with client.stream_post(url, json={"prompt": "Hello"}) as stream:
+            ...     for event in stream:
+            ...         if not event.is_done:
+            ...             print(event.data, end='')
+        """
+        merged_headers = self._merge_headers(headers)
+        return self.stream_request(
+            HTTPMethod.POST,
+            url,
+            json=json,
+            data=data,
+            headers=merged_headers,
+            **kwargs,
+        )
+
 
 class AsyncHTTPClient:
     """Asynchronous HTTP client with retry and error handling.
@@ -531,6 +644,118 @@ class AsyncHTTPClient:
         return await self.request(
             HTTPMethod.DELETE,
             url,
+            headers=merged_headers,
+            **kwargs,
+        )
+
+    async def stream_request(
+        self,
+        method: Union[str, HTTPMethod],
+        url: str,
+        **kwargs: Any,
+    ) -> AsyncSSEStream:
+        """Make an async streaming HTTP request for SSE.
+
+        This method enables streaming mode for Server-Sent Events (SSE).
+        Use this for streaming responses from LLM APIs.
+
+        Args:
+            method: HTTP method (GET, POST, etc.)
+            url: Request URL
+            **kwargs: Additional httpx request parameters
+
+        Returns:
+            AsyncSSEStream object for iterating over events
+
+        Examples:
+            >>> async with client.stream_request("POST", url, json=data) as stream:
+            ...     async for event in stream:
+            ...         print(event.data)
+        """
+        method_str = method.value if isinstance(method, HTTPMethod) else method
+
+        logger.debug(f"Making async streaming {method_str} request to {url}")
+
+        try:
+            # Create async streaming request
+            async with self._client.stream(method_str, url, **kwargs) as response:
+                response.raise_for_status()
+
+                logger.debug(
+                    f"Async streaming {method_str} {url} -> {response.status_code}"
+                )
+
+                return AsyncSSEStream(response)
+
+        except Exception as e:
+            logger.error(f"Async streaming {method_str} {url} failed: {str(e)}")
+            self._handle_httpx_error(e, url)
+            raise
+
+    async def stream_get(
+        self,
+        url: str,
+        params: Optional[QueryParams] = None,
+        headers: Optional[Headers] = None,
+        **kwargs: Any,
+    ) -> AsyncSSEStream:
+        """Make an async streaming GET request.
+
+        Args:
+            url: Request URL
+            params: Query parameters
+            headers: Request headers
+            **kwargs: Additional request parameters
+
+        Returns:
+            AsyncSSEStream object
+
+        Examples:
+            >>> async with client.stream_get(url) as stream:
+            ...     async for event in stream:
+            ...         print(event.data)
+        """
+        merged_headers = self._merge_headers(headers)
+        return await self.stream_request(
+            HTTPMethod.GET,
+            url,
+            params=params,
+            headers=merged_headers,
+            **kwargs,
+        )
+
+    async def stream_post(
+        self,
+        url: str,
+        json: Optional[JSONData] = None,
+        data: Optional[Any] = None,
+        headers: Optional[Headers] = None,
+        **kwargs: Any,
+    ) -> AsyncSSEStream:
+        """Make an async streaming POST request.
+
+        Args:
+            url: Request URL
+            json: JSON body
+            data: Form data or raw body
+            headers: Request headers
+            **kwargs: Additional request parameters
+
+        Returns:
+            AsyncSSEStream object
+
+        Examples:
+            >>> async with client.stream_post(url, json={"prompt": "Hello"}) as stream:
+            ...     async for event in stream:
+            ...         if not event.is_done:
+            ...             print(event.data, end='')
+        """
+        merged_headers = self._merge_headers(headers)
+        return await self.stream_request(
+            HTTPMethod.POST,
+            url,
+            json=json,
+            data=data,
             headers=merged_headers,
             **kwargs,
         )
