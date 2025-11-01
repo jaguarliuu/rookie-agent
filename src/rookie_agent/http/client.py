@@ -377,7 +377,11 @@ class HTTPClient:
 
         try:
             # Create streaming request
-            with self._client.stream(method_str, url, **kwargs) as response:
+            # 不使用with，让SSEStream管理response的生命周期
+            response = self._client.stream(method_str, url, **kwargs)
+            response.__enter__()  # 手动进入上下文
+
+            try:
                 response.raise_for_status()
 
                 logger.debug(
@@ -385,6 +389,10 @@ class HTTPClient:
                 )
 
                 return SSEStream(response)
+            except Exception:
+                # 如果raise_for_status失败，关闭response
+                response.__exit__(None, None, None)
+                raise
 
         except Exception as e:
             logger.error(f"Streaming {method_str} {url} failed: {str(e)}")
@@ -678,7 +686,11 @@ class AsyncHTTPClient:
 
         try:
             # Create async streaming request
-            async with self._client.stream(method_str, url, **kwargs) as response:
+            # 不使用async with，让AsyncSSEStream管理response的生命周期
+            response = self._client.stream(method_str, url, **kwargs)
+            await response.__aenter__()  # 手动进入异步上下文
+
+            try:
                 response.raise_for_status()
 
                 logger.debug(
@@ -686,6 +698,10 @@ class AsyncHTTPClient:
                 )
 
                 return AsyncSSEStream(response)
+            except Exception:
+                # 如果raise_for_status失败，关闭response
+                await response.__aexit__(None, None, None)
+                raise
 
         except Exception as e:
             logger.error(f"Async streaming {method_str} {url} failed: {str(e)}")

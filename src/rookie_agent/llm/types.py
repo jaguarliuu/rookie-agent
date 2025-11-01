@@ -12,7 +12,7 @@ Key Types:
 
 from enum import Enum
 from typing import List, Optional, Union, Dict, Any, Literal
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator, model_validator, ConfigDict
 
 
 # ==================== Enumerations ====================
@@ -86,26 +86,16 @@ class MessageContent(BaseModel):
     image_base64: Optional[str] = None
     detail: Optional[Literal["auto", "low", "high"]] = "auto"  # Image detail level
 
-    @validator("text")
-    def validate_text_content(cls, v, values):
-        """Ensure text is present for TEXT type."""
-        if values.get("type") == ContentType.TEXT and not v:
+    @model_validator(mode='after')
+    def validate_content_fields(self) -> 'MessageContent':
+        """Ensure required fields are present based on content type."""
+        if self.type == ContentType.TEXT and not self.text:
             raise ValueError("text is required for TEXT content type")
-        return v
-
-    @validator("image_url")
-    def validate_image_url_content(cls, v, values):
-        """Ensure image_url is present for IMAGE_URL type."""
-        if values.get("type") == ContentType.IMAGE_URL and not v:
+        if self.type == ContentType.IMAGE_URL and not self.image_url:
             raise ValueError("image_url is required for IMAGE_URL content type")
-        return v
-
-    @validator("image_base64")
-    def validate_image_base64_content(cls, v, values):
-        """Ensure image_base64 is present for IMAGE_BASE64 type."""
-        if values.get("type") == ContentType.IMAGE_BASE64 and not v:
+        if self.type == ContentType.IMAGE_BASE64 and not self.image_base64:
             raise ValueError("image_base64 is required for IMAGE_BASE64 content type")
-        return v
+        return self
 
 
 # ==================== Messages ====================
@@ -157,10 +147,7 @@ class Message(BaseModel):
     function_call: Optional[Dict[str, Any]] = None  # Legacy OpenAI format
     tool_calls: Optional[List[Dict[str, Any]]] = None  # New OpenAI format
 
-    class Config:
-        """Pydantic config."""
-
-        use_enum_values = True  # Use enum values in serialization
+    model_config = ConfigDict(use_enum_values=True)
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary format for API calls.
@@ -323,10 +310,7 @@ class CompletionChoice(BaseModel):
     message: Message
     finish_reason: Optional[FinishReason] = None
 
-    class Config:
-        """Pydantic config."""
-
-        use_enum_values = True
+    model_config = ConfigDict(use_enum_values=True)
 
 
 class ChatCompletion(BaseModel):

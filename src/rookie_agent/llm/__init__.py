@@ -60,6 +60,7 @@ from rookie_agent.llm.config import (
     ClaudeConfig,
 )
 from rookie_agent.llm.base import BaseLLMProvider
+from rookie_agent.llm.providers import QwenProvider, DeepSeekProvider
 
 __all__ = [
     # Exceptions
@@ -96,4 +97,7 @@ __all__ = [
     "ClaudeConfig",
     # Base Provider
     "BaseLLMProvider",
+    # Providers
+    "QwenProvider",
+    "DeepSeekProvider",
 ]
